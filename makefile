@@ -1,2 +1,2 @@
-spellchecker: spellchecker.c
-	gcc -o spellchecker spellchecker.c
+server: server.c
+	gcc -o server server.c -Wall -Werror
