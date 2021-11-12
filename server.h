@@ -12,6 +12,9 @@
 #include <arpa/inet.h>
 
 #define DEFAULT_DICTIONARY "words.txt"
+#define MAX_NET_BACKLOG 1024
+#define DICTIONARY_LENGTH 466474
+#define BUFF_SIZE 256
 #define NUM_WORK 10
 
 typedef struct Node {

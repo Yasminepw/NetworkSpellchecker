@@ -1,6 +1,4 @@
 #include "server.h"
-#define MAX_NET_BACKLOG 1024
-#define BUFF_SIZE 256
 
 Queue *workQueue; 
 Queue *logQueue; 
@@ -9,6 +7,52 @@ pthread_cond_t cond1, cond2, cond3, cond4;
 
 char** dict_words; //Holds all words found in dictionary
 
+char ** dictionary(char *filename) {
+
+    char line [BUFF_SIZE];
+    int index = 0;
+
+    FILE *fd = fopen(filename, "r"); //Opens file in read only 
+
+    if(fd == NULL) {
+        printf("Error opening dictionary file!\n");
+        exit(1);
+    }
+
+    char ** output = malloc(DICTIONARY_LENGTH * sizeof(char *) + 2);
+
+    if(output == NULL) {
+        printf("Memory allocation error.\n");
+        exit(1);
+     }
+
+  }
+
+
+void *worker_thread(void *arg) {
+    while(1) {
+      printf("Socket = %d Thread = %ld Buffer = %d\n", get_socket(), pthread_self(), *workQueue);
+    }
+    return 0;
+}
+
+
+void *log_thread(void *arg) {
+    FILE *log = fopen("log.txt", "r");
+
+    while (1) {
+        pthread_mutex_lock(&log_lock);
+        while (empty(logQueue))
+            pthread_cond_wait(&cond2, &log_lock);
+    
+        char *msg = removeQueue(logQueue);
+        pthread_mutex_unlock(&log_lock);
+        fprintf(log, "%s", msg);
+        fflush(log);
+        free(msg);
+    }
+
+}
 
 int main(int argc, char *argv[]) {
     int port = 8889; //Default port  
@@ -84,31 +128,5 @@ int main(int argc, char *argv[]) {
 
     close(socketfd);
     return 0; 
-
-}
-
-void *worker_thread(void *arg) {
-    while(1) {
-      printf("Socket = %d Thread = %ld Buffer = %d\n", get_socket(), pthread_self(), *workQueue);
-    }
-    return 0;
-}
-
-
-void *log_thread(void *arg) {
-    FILE *log = fopen("log.txt", "r");
-
-    while (1) {
-        pthread_mutex_lock(&log_lock);
-        while (empty(logQueue))
-            pthread_cond_wait(&cond2, &log_lock);
-    
-        char *msg = removeQueue(logQueue);
-        pthread_mutex_unlock(&log_lock);
-        fprintf(log, "%s", msg);
-        fflush(log);
-        free(msg);
-    }
-
 
 }
