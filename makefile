@@ -1,2 +1,2 @@
 server: server.c
-	gcc -o server server.c -Wall -Werror
+	gcc -o server server.c queues.c -Wall -Werror
