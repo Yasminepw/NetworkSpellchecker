@@ -46,12 +46,75 @@ char ** dictionary(char *filename) {
 
   }
 
-
 void *worker_thread(void *arg) {
-    while(1) {
-      printf("Socket = %d Thread = %ld Buffer = %d\n", get_socket(), pthread_self(), *workQueue);
+    char *promptMsg = "Enter word to spellcheck: ";
+    char *closeMsg = "Connection to server is terminated!\n";
+    char *errorMsg = "Error displaying message!\n";
+
+    while (1) {
+        //This locks to work queue
+        pthread_mutex_lock(&work_lock);
+
+        if (workQueue->qsize <= 0) {
+            pthread_cond_wait(&cond1, &work_lock);
     }
-    return 0;
+
+    //Poping the first job off the queue 
+    Node *job = pop(workQueue);
+    pthread_mutex_unlock(&work_lock);
+    pthread_cond_signal(&cond2);
+
+    int client_socket = job->client_socket;
+
+    while (1) { 
+        char buff_recv[bufferSize] = " ";
+        //This sends the prompt to the buffer
+        send(client_socket, promptMsg, strlen(promptMsg), 0);
+        int returnedWord = recv(client_socket, buff_recv, BUF_SIZE, 0);
+        //Error check
+        if (returnedWord <= -1) {
+            send(client_socket, errorMsg, strlen(errorMsg), 0);
+            continue;
+        //Quitting client
+        } else if (atoi(&buff_recv[0]) == -1) {
+            send(client_socket, closeMsg, strlen(closeMsg), 0);
+            close(client_socket);
+            break;
+        //Checking if word is found in dictionary
+        } else {
+            buff_recv[strlen(buff_recv) - 1] = '\0';
+            buff_recv[returnedWord - 2] = '\0';
+        //Word is mispelled
+        char *result = " INCORRECT\n";
+        for (int i = 0; i < DICTIONARY_LENGTH; i++) {
+            //Word is spelled correctly
+            if (strcmp(buff_recv, dict_words[i]) == 0) {
+                result = " CORRECT\n";
+                break;
+            }
+        }
+
+        strcat(buff_recv, result);
+        printf("%s", buff_recv);
+        send(client_socket, buff_recv, strlen(buff_recv), 0);
+
+        struct sockaddr_in client = job->client_addr;
+
+        //Locking log 
+        pthread_mutex_lock(&log_lock);
+
+        if(logQueue->qsize >= sizeMax) {
+            pthread_cond_wait(&cond4, &logQueue_lock);
+
+        }
+        // Adds result to log buffer
+        push(logQueue, client, buff_recv, client_socket);
+        pthread_mutex_unlock(&logQueue_lock);
+        pthread_cond_signal(&cond3);
+
+      }
+    }
+  }
 }
 
 
