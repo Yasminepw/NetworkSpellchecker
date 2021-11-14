@@ -9,12 +9,9 @@ char** dict_words; //Holds all words found in dictionary
 
 char ** dictionary(char *filename) {
 
-    char line [BUFF_SIZE];
-    int index = 0;
+    FILE *file = fopen(filename, "r"); //Opens file in read only 
 
-    FILE *fd = fopen(filename, "r"); //Opens file in read only 
-
-    if(fd == NULL) {
+    if(file == NULL) {
         printf("Error opening dictionary file!\n");
         exit(1);
     }
@@ -25,6 +22,27 @@ char ** dictionary(char *filename) {
         printf("Memory allocation error.\n");
         exit(1);
      }
+
+    char line [bufferSize];
+    int index = 0; 
+
+    //Copies the dictionary file line by line 
+    while((fgets(line, bufferSize, file)) != NULL) {
+        output[index] = (char *) malloc(strlen(line) * sizeof(char *) + 1);
+
+        if(output[index] == NULL) {
+            printf("Memory allocation error.\n");
+            exit(1);
+    }
+
+    int temp = strlen(line) - 2;
+    line[temp] = '\0';
+    strcpy(output[index], line);
+    index++;
+  }
+
+  fclose(file);
+  return output;
 
   }
 
@@ -114,19 +132,31 @@ int main(int argc, char *argv[]) {
         client_socket = accept(socketfd, NULL, NULL); 
 
         if(client_socket < 0) { 
-            puts("Unable to connect to client"); 
+            puts("Unable to connect to client!"); 
         }
 
         int result; 
         result = send(client_socket, message, strlen(message), 0); 
 
         if(result == -1) { 
-            puts("Couldn't send message"); 
+            puts("Error sending message!"); 
         }
+
+        // Checks if full and locks work queue 
+        pthread_mutex_lock(&work_lock);
+
+        if(workQueue->qsize >= sizeMax) {
+            send(client_socket, fullBuff, strlen(fullBuff), 0);
+            pthread_cond_wait(&cond2, &work_lock);
+        }
+
+        push(workQueue, address, NULL, client_socket);
+        pthread_mutex_unlock(&work_lock);
+        pthread_cond_signal(&cond1);
     
     }  
 
     close(socketfd);
     return 0; 
+} 
 
-}
