@@ -14,7 +14,8 @@
 #define DEFAULT_DICTIONARY "words.txt"
 #define MAX_NET_BACKLOG 1024
 #define DICTIONARY_LENGTH 466474
-#define BUFF_SIZE 256
+#define bufferSize 256
+#define sizeMax 900
 #define NUM_WORK 10
 
 typedef struct Node {
@@ -31,8 +32,8 @@ typedef struct Queue {
 
 Queue *initQueue();
 Node *initNode(struct sockaddr_in, char *, int);
-void addQueue(Queue *, struct sockaddr_in , char *, int);
-void *removeQueue(Queue *);
+void push(Queue *, struct sockaddr_in , char *, int);
+void *pop(Queue *);
 int empty(Queue *);
 void *worker_thread(void *);
 void *log_thread(void *);
