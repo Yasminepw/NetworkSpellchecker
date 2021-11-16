@@ -1,3 +1,7 @@
+//Yasmine Watkins
+//CIS 3207 - 001
+//Networked Spell checker
+
 #include "server.h"
 
 // Global buffer variables.
@@ -5,6 +9,7 @@ socketBuff socket_buff;
 logBuff log_buff;
 
 int sizeMax = 5; 
+int logMax = 100; 
 char **dictWords; 
 
 char ** dictionary(char *filename) {
@@ -55,7 +60,7 @@ void put(int client_socket) {
         
     //Gets the first job off the queue 
     socket_buff.array[socket_buff.fill_ptr] = client_socket; 
-    socket_buff.fill_ptr = (socket_buff.fill_ptr + 1) % socket_buff.array_count; 
+    socket_buff.fill_ptr = (socket_buff.fill_ptr + 1) % sizeMax; 
     socket_buff.array_count++; 
     pthread_cond_signal(&socket_buff.cond_full);
     pthread_mutex_unlock(&socket_buff.work_lock);
@@ -70,7 +75,7 @@ int get() {
     }
     //Gets the first job off the queue 
     int client = socket_buff.array[socket_buff.use_ptr]; 
-    socket_buff.use_ptr = (socket_buff.use_ptr + 1) % socket_buff.array_count; 
+    socket_buff.use_ptr = (socket_buff.use_ptr + 1) % sizeMax; 
     socket_buff.array_count--; 
     pthread_cond_signal(&socket_buff.cond_empty);
     pthread_mutex_unlock(&socket_buff.work_lock);
@@ -81,99 +86,102 @@ int get() {
 void* worker_thread(void* args) {
     char *promptMsg = "Enter word to spellcheck: ";
     char *closeMsg = "Connection to server is terminated!\n";
-    char *errorMsg = "Error displaying message!\n";
-
-    int client_socket = get();
+    char word_recv[bufferSize];
+    int client_socket; 
 
     while (1) { 
-        char buff_recv[bufferSize] = "";
-        //This sends the prompt to the buffer
+        client_socket = get();
         send(client_socket, promptMsg, strlen(promptMsg), 0);
-        int returnedWord = recv(client_socket, buff_recv, bufferSize, 0);
-        //Error check
-        if (returnedWord < 0) {
-            send(client_socket, errorMsg, strlen(errorMsg), 0);
-            continue;
-        //Quitting client
-        } else if (atoi(&buff_recv[0]) == -1) {
-            send(client_socket, closeMsg, strlen(closeMsg), 0);
-            close(client_socket);
-            break;
-        //Checking if word is found in dictionary
-        } else {
-            buff_recv[strlen(buff_recv) - 1] = '\0';
-            buff_recv[returnedWord - 2] = '\0';
+
+        while(read(client_socket, word_recv, bufferSize) > 0) { 
+            //Terminates connection of user enters -1 
+            if (atoi(&word_recv[0]) == -1) {
+                send(client_socket, closeMsg, strlen(closeMsg), 0);
+                close(client_socket);
+                return 0;
+            } else {
         
-        //Word is mispelled
-        char *result = " MISSPELLED\n";
-        for (int i = 0; i < DICTIONARY_LENGTH; i++) {
-            //Word is spelled correctly
-            if (strcmp(buff_recv, dictWords[i]) == 0) {
-                result = " OK\n";
-                break;
+                word_recv[strlen(word_recv) - 1] = '\0'; 
+                //Word is mispelled
+                char *result = " MISSPELLED\n";
+                for (int i = 0; i < DICTIONARY_LENGTH; i++) {
+                    //Word is spelled correctly
+                    if (strcmp(word_recv, dictWords[i]) == 0) {
+                        result = " OK\n";
+                        break;
+                    }
+                }
+
+                strcat(word_recv, result);
+                //printf("%s", word_recv);
+                send(client_socket, word_recv, strlen(word_recv), 0);
+                //Puts record of words in logfile
+                putLog(word_recv); 
             }
+            memset(word_recv, 0, bufferSize);
         }
 
-        strcat(buff_recv, result);
-        printf("%s", buff_recv);
-        send(client_socket, buff_recv, strlen(buff_recv), 0);
-
-        // //Locking log 
-        // pthread_mutex_lock(&logQueue_lock);
-
-        // if(logQueue->qsize >= sizeMax) {
-        //     pthread_cond_wait(&empty, &logQueue_lock);
-
-        // }
-        // // Adds result to log buffer
-        // push(logQueue, client, buff_recv, client_socket);
-        // pthread_mutex_unlock(&logQueue_lock);
-        // pthread_cond_signal(&full);
-
-        }
     }
     return 0; 
 } 
 
-// void *log_thread(void *arg) {
+void putLog(char *wordLog) {
+    //This locks to work queue
+    pthread_mutex_lock(&(log_buff.log_lock));
+    while(log_buff.array_count >= logMax) {
+        pthread_cond_wait(&log_buff.cond_empty, &log_buff.log_lock);
+    }
+        
+    //Gets the first job off the queue 
+    log_buff.array[log_buff.fill_ptr] = wordLog; 
+    log_buff.fill_ptr = (log_buff.fill_ptr + 1) % logMax; 
+    log_buff.array_count++; 
+    pthread_cond_signal(&log_buff.cond_full);
+    pthread_mutex_unlock(&log_buff.log_lock);
+} 
 
-//      while(1) {
-//         /* Locks the log queue. */
-//         pthread_mutex_lock(&logQueue_lock);
-//         if (logQueue->qsize == 0) {
-//             /* Waits if empty. */
-//             pthread_cond_wait(&full, &logQueue_lock);
-//         }
-//         /* Gets the word. */
-//         Node *node = pop(logQueue);
-//         char *word = node->word;
+char * getLog() { 
+    //This locks to work queue
+    pthread_mutex_lock(&(log_buff.log_lock));
+    while(log_buff.array_count < 1) {
+        pthread_cond_wait(&log_buff.cond_full, &log_buff.log_lock);
+    } 
+    //Gets the first job off the queue 
+    char *word = log_buff.array[log_buff.use_ptr]; 
+    log_buff.use_ptr = (log_buff.use_ptr + 1) % logMax; 
+    log_buff.array_count--; 
+    pthread_cond_signal(&log_buff.cond_empty);
+    pthread_mutex_unlock(&log_buff.log_lock);
+    return word; 
+}
 
-//         /* Releases the lock. */
-//         pthread_mutex_unlock(&logQueue_lock);
-//         /* Sends the signal. */
-//         pthread_cond_signal(&empty);
+void *log_thread(void *arg) {
+    char *word;
+    FILE *log_file;
+     while(1) {
+        log_file = fopen(DEFAULT_LOG_FILE, "a");
+        word = getLog(); 
 
-//         /* If empty do nothing. */
-//         if (word == NULL) {
-//             continue;
-//         }
-
-//         /* Lock the log file. */
-//         pthread_mutex_lock(&log_lock);
-
-//         /* Write results to log file. */
-//         FILE *log_file = fopen(DEFAULT_LOG_FILE, "a");
-//         fprintf(log_file, "%s", word);
-//         fclose(log_file);
-
-//         /* Releases the lock. */
-//         pthread_mutex_unlock(&log_lock);
-//     }
-// }
+        // Write results to log file. 
+       
+        fprintf(log_file, "%s\n", word);
+        //fprintf(stdout,"%s\n", word); 
+        fclose(log_file);
+    }
+}
 
 int main(int argc, char **argv) { 
     char *dict; 
     int port; 
+    socket_buff.array = malloc(sizeMax * sizeof(int));
+    socket_buff.fill_ptr = 0; 
+    socket_buff.use_ptr = 0; 
+    socket_buff.array_count = 0; 
+    log_buff.array = malloc(logMax * sizeof(char));
+    log_buff.fill_ptr = 0; 
+    log_buff.use_ptr = 0; 
+    log_buff.array_count = 0; 
+
 
     //Determines which port and dictionary to use 
     if(argc == 1){ 
@@ -188,23 +196,25 @@ int main(int argc, char **argv) {
         dict = argv[2]; 
 
     }
+
+    //Gets the dictionary words.
+    dictWords = dictionary(dict);
    
     pthread_mutex_init(&socket_buff.work_lock, NULL);
     pthread_mutex_init(&log_buff.log_lock, NULL);
     pthread_cond_init(&socket_buff.cond_full, NULL);
     pthread_cond_init(&socket_buff.cond_empty, NULL);
-    //pthread_cond_init(log_buff. , NULL);
-    //pthread_cond_init(log_buff.cond_empty, NULL);
+    pthread_cond_init(&log_buff.cond_full, NULL);
+    pthread_cond_init(&log_buff.cond_empty, NULL);
 
     // Delcare thread pool for workers and thread for logging
+    pthread_t logger;
+    pthread_create(&logger, NULL, &log_thread, NULL);
     pthread_t workers[NUM_WORK];
     
     for (int i = 0; i < NUM_WORK; i++) {
         pthread_create(&workers[i], NULL, &worker_thread, NULL);
     }
-  
-    //pthread_t logger;
-    //pthread_create(&logger, NULL, &log_thread, NULL);
 
      //Socket creation and declation of variables 
     int socketfd; 
@@ -224,12 +234,12 @@ int main(int argc, char **argv) {
     bind(socketfd, (struct sockaddr *) &address, sizeof(address)); 
     puts("Spellcheck server started..."); 
     listen(socketfd, MAX_NET_BACKLOG); 
-
+   
     int client_socket; 
 
     while (1) {
         client_socket = accept(socketfd, NULL, NULL); 
-
+        
         if(client_socket < 0) { 
             puts("Unable to connect to client!"); 
         }
@@ -240,9 +250,9 @@ int main(int argc, char **argv) {
         if(result == -1) { 
             puts("Error sending message!"); 
         }
-        
+
         put(client_socket);
-    
+        
     }  
 
     close(socketfd);
