@@ -42,5 +42,10 @@ typedef struct logBuff {
 
 void *worker_thread(void *);
 void *log_thread(void *);
+void put(int client_socket); 
+void* worker_thread(void* args);
+void putLog(char *wordLog); 
+char *getLog(); 
+char ** dictionary(char *filename); 
 
 #endif //SERVER_H
