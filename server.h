@@ -19,22 +19,6 @@
 #define bufferSize 256
 #define NUM_WORK 5
 
-// typedef struct Node {
-//   struct sockaddr_in client;
-//   int client_socket;
-//   char *word;
-//   struct Node *next;
-// }Node;
-
-// typedef struct Queue {
-//   Node *head;
-//   int qsize;
-// }Queue;
-
-// Queue *initQueue();
-// Node *initNode(struct sockaddr_in, char *, int);
-// void push(Queue *, struct sockaddr_in , char *, int);
-// Node *pop(Queue *);
 
 typedef struct socketBuff {
     int *array;
