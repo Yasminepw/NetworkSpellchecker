@@ -115,6 +115,10 @@ void* worker_thread(void* args) {
                 strcat(word_recv, result);
                 //printf("%s", word_recv);
                 send(client_socket, word_recv, strlen(word_recv), 0);
+                FILE *log_file = fopen(DEFAULT_LOG_FILE, "a");
+                // Write results to log file. 
+                fprintf(log_file, "%s", word_recv);
+                fclose(log_file);
                 //Puts record of words in logfile
                 putLog(word_recv); 
             }
@@ -162,10 +166,6 @@ void *log_thread(void *arg) {
         log_file = fopen(DEFAULT_LOG_FILE, "a");
         word = getLog(); 
 
-        // Write results to log file. 
-       
-        fprintf(log_file, "%s\n", word);
-        //fprintf(stdout,"%s\n", word); 
         fclose(log_file);
     }
 }
